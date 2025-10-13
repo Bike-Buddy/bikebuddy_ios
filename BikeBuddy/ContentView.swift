@@ -8,14 +8,20 @@
 import SwiftUI
 
 struct ContentView: View {
+    
+    @StateObject var bleManager = BLEManager()
+    @State private var messageToSend: String = ""
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationView {
+            List(bleManager.peripherals, id: \.identifier) { peripheral in
+                Button(action: {
+                    bleManager.connect(to: peripheral)
+                }) {
+                    Text(peripheral.name ?? "Unknown Device")
+                }
+            }.navigationTitle("Bluetooth devices")
         }
-        .padding()
     }
 }
 
