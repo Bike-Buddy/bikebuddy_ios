@@ -12,14 +12,17 @@ import CoreBluetooth
 let targetServiceUUID = CBUUID(string: "FFF0")
 let targetCharacteristicUUID = CBUUID(string: "FFF1")
 
+let espUUID = CBUUID(string: "4FAFC201-1FB5-459E-8FCC-C5C9C331914B")
+
 final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     var centralManager: CBCentralManager!
     
     @Published var peripherals: [CBPeripheral] = []
-    @Published var connectedPeripheral: CBPeripheral?
+    @Published var isConnected = false
     @Published var receivedData: String = ""
     
+    var connectedPeripheral: CBPeripheral?
     var targetCharacteristic: CBCharacteristic?
 
     override init() {
@@ -27,17 +30,27 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
+    func sendTextValue(_ text: String) {
+        let data = Data(text.utf8)
+        if let myCharacteristic = targetCharacteristic {
+            connectedPeripheral?.writeValue(data, for: myCharacteristic, type: .withResponse)
+        }
+    }
+    
+    func refreshDevices() {
+        print("refreshing devices")
+        if centralManager.state == .poweredOn {
+            peripherals.removeAll()
+            centralManager.scanForPeripherals(withServices: nil, options: nil)
+        } else {
+            print("Bluetooth is not powered on")
+        }
+    }
+    
     // MARK: - CBCentralManagerDelegate
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        switch central.state {
-        case .poweredOn:
-            // filter specific devices --> scanForPeripherals(withServices: [CBUUID])
-            centralManager.scanForPeripherals(withServices: nil, options: nil)
-            print("scanning started")
-        default:
-            print("Bluetooth unavailable")
-        }
+        refreshDevices()
     }
     
     func centralManager(_ central: CBCentralManager,
@@ -59,8 +72,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     func centralManager(_ central: CBCentralManager,
                         didConnect peripheral: CBPeripheral) {
+        isConnected = true
         print("connected to \(peripheral.name ?? "Unknown")")
         peripheral.discoverServices(nil)    // use [targetServiceUUID] for specific device
+        centralManager.stopScan()
     }
     
     func centralManager(_ central: CBCentralManager,
@@ -68,11 +83,9 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                         timestamp: CFAbsoluteTime,
                         isReconnecting: Bool,
                         error: (any Error)?) {
-        if let services = peripheral.services {
-            for service in services {
-                print("Service found: \(service.uuid)")
-            }
-        }
+        isConnected = false
+        peripherals.removeAll()
+        refreshDevices()
     }
     
     // MARK: - CBPeripheralDelegate

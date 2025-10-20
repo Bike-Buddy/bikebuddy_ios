@@ -15,12 +15,14 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             List(bleManager.peripherals, id: \.identifier) { peripheral in
-                Button(action: {
-                    bleManager.connect(to: peripheral)
-                }) {
-                    Text(peripheral.name ?? "Unknown Device")
+                Button(action: { bleManager.connect(to: peripheral) }) {
+                    Text(peripheral.name ?? "unknown")
                 }
-            }.navigationTitle("Bluetooth devices")
+            }
+            .navigationTitle("Devices")
+            .refreshable {
+                bleManager.refreshDevices()
+            }
         }
     }
 }
