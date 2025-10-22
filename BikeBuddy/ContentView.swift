@@ -15,8 +15,11 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             List(bleManager.peripherals, id: \.identifier) { peripheral in
-                Button(action: { bleManager.connect(to: peripheral) }) {
-                    Text(peripheral.name ?? "unknown")
+                // peripheral.identifier.uuidString == "4FAFC201-1FB5-459E-8FCC-C5C9C331914B"
+                if ( peripheral.name?.hasPrefix("Long name works now") ?? false ) {
+                    Button(action: { bleManager.connect(to: peripheral) }) {
+                        Text(peripheral.description)
+                    }
                 }
             }
             .navigationTitle("Devices")

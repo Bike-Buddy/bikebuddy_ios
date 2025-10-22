@@ -8,11 +8,9 @@
 import Foundation
 import CoreBluetooth
 
-// dummy values, use these to get specific service + characteristic device
-let targetServiceUUID = CBUUID(string: "FFF0")
-let targetCharacteristicUUID = CBUUID(string: "FFF1")
-
-let espUUID = CBUUID(string: "4FAFC201-1FB5-459E-8FCC-C5C9C331914B")
+// use these to get specific service + characteristic device
+let targetServiceUUID = CBUUID(string: "4FAFC201-1FB5-459E-8FCC-C5C9C331914B")
+let targetCharacteristicUUID = CBUUID(string: "BEB5483E-36E1-4688-B7F5-EA07361B26A8")
 
 final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
@@ -30,13 +28,6 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
-    func sendTextValue(_ text: String) {
-        let data = Data(text.utf8)
-        if let myCharacteristic = targetCharacteristic {
-            connectedPeripheral?.writeValue(data, for: myCharacteristic, type: .withResponse)
-        }
-    }
-    
     func refreshDevices() {
         print("refreshing devices")
         if centralManager.state == .poweredOn {
@@ -45,6 +36,11 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         } else {
             print("Bluetooth is not powered on")
         }
+    }
+    
+    func connect(to peripheral: CBPeripheral) {
+        connectedPeripheral = peripheral
+        centralManager.connect(peripheral, options: nil)
     }
     
     // MARK: - CBCentralManagerDelegate
@@ -59,23 +55,21 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                         rssi RSSI: NSNumber) {
         if !peripherals.contains(where: { $0.identifier == peripheral.identifier }) {
             peripherals.append(peripheral)
-            print("discovered: \(peripheral.name ?? "Unknown")")
+            if peripheral.services?.first?.uuid == targetServiceUUID {
+                print("discovered: \(peripheral.name ?? "Unknown"), advertised: \(advertisementData)")
+            }
         }
-    }
-    
-    func connect(to peripheral: CBPeripheral) {
-        centralManager.stopScan()
-        connectedPeripheral = peripheral
-        peripheral.delegate = self
-        centralManager.connect(peripheral, options: nil)
     }
     
     func centralManager(_ central: CBCentralManager,
                         didConnect peripheral: CBPeripheral) {
         isConnected = true
-        print("connected to \(peripheral.name ?? "Unknown")")
-        peripheral.discoverServices(nil)    // use [targetServiceUUID] for specific device
         centralManager.stopScan()
+        peripheral.delegate = self
+
+        print("connected to \(peripheral.name ?? "Unknown")")
+
+        peripheral.discoverServices([targetServiceUUID])    // use [targetServiceUUID] for specific device
     }
     
     func centralManager(_ central: CBCentralManager,
@@ -90,17 +84,33 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     // MARK: - CBPeripheralDelegate
     
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: (any Error)?) {
+    func peripheral(_ peripheral: CBPeripheral,
+                    didDiscoverServices error: (any Error)?) {
+        
+        if let error = error {
+            print("unable to discover services: \(error.localizedDescription)")
+            refreshDevices()
+            return
+        }
+        
         guard let services = peripheral.services else { return }
         
         for service in services {
             print("Service found: \(service.uuid)")
-            
-            peripheral.discoverCharacteristics(nil, for: service)   // use [targetCharacteristicsUUID] for specific device
+            peripheral.discoverCharacteristics([targetCharacteristicUUID], for: service)
         }
     }
     
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: (any Error)?) {
+    func peripheral(_ peripheral: CBPeripheral,
+                    didDiscoverCharacteristicsFor service: CBService,
+                    error: (any Error)?) {
+        
+        if let error = error {
+            print("unable to discover characteristics: \(error.localizedDescription)")
+            refreshDevices()
+            return
+        }
+
         guard let characteristics = service.characteristics else { return }
         
         for characteristic in characteristics {
@@ -108,27 +118,46 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             
             if characteristic.uuid == targetCharacteristicUUID {
                 targetCharacteristic = characteristic
-                peripheral.setNotifyValue(true, for: characteristic)
                 peripheral.readValue(for: characteristic)
+                // peripheral.setNotifyValue(true, for: characteristic)
             }
         }
     }
     
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: (any Error)?) {
-        if characteristic.uuid == targetCharacteristicUUID, let value = characteristic.value {
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateNotificationStateFor characteristic: CBCharacteristic,
+                    error: (any Error)?) {
+        
+        if let error = error {
+            print("characteristic update notification error: \(error.localizedDescription)")
+            refreshDevices()
+            return
+        }
+        
+        if characteristic.uuid == targetCharacteristicUUID {
+            if characteristic.isNotifying {
+                print("notifications have begun")
+            } else {
+                print("notifications have ended, disconnecting")
+                centralManager.cancelPeripheralConnection(peripheral)
+            }
+        }
+    }
+        
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateValueFor characteristic: CBCharacteristic,
+                    error: (any Error)?) {
+        if let error = error {
+            print("characteristic update value error: \(error.localizedDescription)")
+            refreshDevices()
+            return
+        }
+        
+        if let value = characteristic.value {
             let stringValue = String(decoding: value, as: UTF8.self)
             receivedData = stringValue
             print("received value: \(stringValue)")
         }
     }
     
-    func write(_ string: String) {
-        guard let peripheral = connectedPeripheral,
-                let characteristic = targetCharacteristic,
-                let data = string.data(using: .utf8) else { return }
-        
-        peripheral.writeValue(data, for: characteristic, type: .withResponse)
-        print("wrote value: \(string)")
-    }
-            
 }
