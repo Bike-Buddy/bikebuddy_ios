@@ -22,7 +22,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     var connectedPeripheral: CBPeripheral?
     var targetCharacteristic: CBCharacteristic?
-
+    
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -55,8 +55,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                         rssi RSSI: NSNumber) {
         if !peripherals.contains(where: { $0.identifier == peripheral.identifier }) {
             peripherals.append(peripheral)
-            if peripheral.services?.first?.uuid == targetServiceUUID {
-                print("discovered: \(peripheral.name ?? "Unknown"), advertised: \(advertisementData)")
+            for service in peripheral.services ?? [] {
+                if service.uuid == targetServiceUUID {
+                    print("discovered: \(peripheral.name ?? "Unknown"), advertised: \(advertisementData)")
+                }
             }
         }
     }
@@ -118,28 +120,7 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             
             if characteristic.uuid == targetCharacteristicUUID {
                 targetCharacteristic = characteristic
-                peripheral.readValue(for: characteristic)
-                // peripheral.setNotifyValue(true, for: characteristic)
-            }
-        }
-    }
-    
-    func peripheral(_ peripheral: CBPeripheral,
-                    didUpdateNotificationStateFor characteristic: CBCharacteristic,
-                    error: (any Error)?) {
-        
-        if let error = error {
-            print("characteristic update notification error: \(error.localizedDescription)")
-            refreshDevices()
-            return
-        }
-        
-        if characteristic.uuid == targetCharacteristicUUID {
-            if characteristic.isNotifying {
-                print("notifications have begun")
-            } else {
-                print("notifications have ended, disconnecting")
-                centralManager.cancelPeripheralConnection(peripheral)
+                peripheral.setNotifyValue(true, for: characteristic)
             }
         }
     }
@@ -153,10 +134,17 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             return
         }
         
-        if let value = characteristic.value {
+        if characteristic.uuid == targetCharacteristicUUID, let value = characteristic.value {
             let stringValue = String(decoding: value, as: UTF8.self)
             receivedData = stringValue
-            print("received value: \(stringValue)")
+            
+            /*
+             
+             TODO: update receivedData using notifications, BLEManager class should collect this in an array for storage + display in ContentView
+             
+             */
+
+            print("received update value: \(stringValue)")
         }
     }
     

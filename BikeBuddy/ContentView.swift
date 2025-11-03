@@ -10,21 +10,53 @@ import SwiftUI
 struct ContentView: View {
     
     @StateObject var bleManager = BLEManager()
-    @State private var messageToSend: String = ""
     
+    @State private var showSheet = false
+
     var body: some View {
         NavigationView {
             List(bleManager.peripherals, id: \.identifier) { peripheral in
-                // peripheral.identifier.uuidString == "4FAFC201-1FB5-459E-8FCC-C5C9C331914B"
-                if ( peripheral.name?.hasPrefix("Long name works now") ?? false ) {
-                    Button(action: { bleManager.connect(to: peripheral) }) {
-                        Text(peripheral.description)
+                if ( peripheral.name?.contains("BikeBuddy") ?? false ) {
+                    Button(action: { bleManager.connect(to: peripheral)
+                        showSheet.toggle() 
+                    }) {
+                        Text(peripheral.name ?? "No Name")
+                    }
+                    .sheet(isPresented: $showSheet) {
+                        SheetView(bleManager: bleManager)
                     }
                 }
             }
             .navigationTitle("Devices")
             .refreshable {
                 bleManager.refreshDevices()
+            }
+        }
+    }
+}
+
+struct SheetView: View {
+    
+    @ObservedObject var bleManager: BLEManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 20) {
+            
+            Text("Received Data:")
+                .font(.headline)
+            Text(bleManager.receivedData)
+                .font(.body)
+                .padding()
+            
+            Text("Device Info:")
+                .font(.headline)
+            Text(bleManager.connectedPeripheral?.description ?? "No Device Connected")
+                .font(.body)
+                .padding()
+            
+            Button("Dismiss") {
+                dismiss()
             }
         }
     }
