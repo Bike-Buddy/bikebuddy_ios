@@ -14,10 +14,13 @@ let targetCharacteristicUUID = CBUUID(string: "BEB5483E-36E1-4688-B7F5-EA07361B2
 
 final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
-    var centralManager: CBCentralManager!
+    // use a singleton so centralManager isnt deallocated when moving between views (avoids XPC error)
+    static let shared = BLEManager()
+    
+    private var centralManager: CBCentralManager!
     
     @Published var peripherals: [CBPeripheral] = []
-    @Published var isConnected = false
+    @Published var isConnected = false  // honestly should just use connectedPeripheral instead, checking if it is nil would be the same as this boolean check (i think)
     @Published var receivedData: String = ""
     
     var connectedPeripheral: CBPeripheral?
@@ -30,16 +33,27 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     func refreshDevices() {
         print("refreshing devices")
-        if centralManager.state == .poweredOn {
-            peripherals.removeAll()
-            centralManager.scanForPeripherals(withServices: nil, options: nil)
-        } else {
-            print("Bluetooth is not powered on")
+        switch centralManager.state {
+        case .poweredOn:
+            // NOTE: this keeps any connected peripherals on refresh, might want to disconnect + clear peripherals list + start new scan
+            if connectedPeripheral != nil {
+                peripherals = [connectedPeripheral!]
+                print("already connected to \(connectedPeripheral!.description)")
+            } else {
+                peripherals.removeAll()
+                centralManager.scanForPeripherals(withServices: nil, options: nil)
+                print("start new scan")
+            }
+        default:
+            break
         }
     }
     
     func connect(to peripheral: CBPeripheral) {
-        connectedPeripheral = peripheral
+        if connectedPeripheral == peripheral && isConnected {
+            print("already connected to \(peripheral.name ?? "Unknown")")
+            return
+        }
         centralManager.connect(peripheral, options: nil)
     }
     
@@ -66,11 +80,10 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     func centralManager(_ central: CBCentralManager,
                         didConnect peripheral: CBPeripheral) {
         isConnected = true
+        connectedPeripheral = peripheral
         centralManager.stopScan()
         peripheral.delegate = self
-
         print("connected to \(peripheral.name ?? "Unknown")")
-
         peripheral.discoverServices([targetServiceUUID])    // use [targetServiceUUID] for specific device
     }
     
@@ -80,7 +93,9 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
                         isReconnecting: Bool,
                         error: (any Error)?) {
         isConnected = false
+        connectedPeripheral = nil
         peripherals.removeAll()
+        print("did disconnect from \(peripheral.name ?? "Unknown")")
         refreshDevices()
     }
     
@@ -138,14 +153,19 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             let stringValue = String(decoding: value, as: UTF8.self)
             receivedData = stringValue
             
-            /*
              
-             TODO: update receivedData using notifications, BLEManager class should collect this in an array for storage + display in ContentView
+             // TODO: update receivedData using notifications, BLEManager class should collect this in an array for storage + display in ContentView
              
-             */
+            // use main queue for UI updates
+             DispatchQueue.main.async {
+                self.receivedData = stringValue
+             }
+             
+             Task {
+                await DataManager.shared.saveReading(stringValue) // TODO: make sure DataManager has something like this
+             }
 
             print("received update value: \(stringValue)")
         }
     }
-    
 }
