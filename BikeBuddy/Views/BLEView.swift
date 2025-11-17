@@ -50,6 +50,9 @@ struct SheetView: View {
             Text(bleManager.receivedData)
                 .font(.body)
                 .padding()
+            Text("Length: \(bleManager.receivedData.count)")
+                .font(.caption)
+                
             
             Text("Device Info:")
                 .font(.headline)

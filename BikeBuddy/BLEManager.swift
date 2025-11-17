@@ -8,6 +8,12 @@
 import Foundation
 import CoreBluetooth
 
+extension Data {
+    func hexEncodedString() -> String {
+        return map { String(format: "%02hhx", $0) }.joined()
+    }
+}
+
 // use these to get specific service + characteristic device
 let targetServiceUUID = CBUUID(string: "4FAFC201-1FB5-459E-8FCC-C5C9C331914B")
 let targetCharacteristicUUID = CBUUID(string: "BEB5483E-36E1-4688-B7F5-EA07361B26A8")
@@ -150,22 +156,14 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         }
         
         if characteristic.uuid == targetCharacteristicUUID, let value = characteristic.value {
-            let stringValue = String(decoding: value, as: UTF8.self)
+            let stringValue = value.hexEncodedString()
             receivedData = stringValue
-            
-             
-             // TODO: update receivedData using notifications, BLEManager class should collect this in an array for storage + display in ContentView
-             
-            // use main queue for UI updates
-             DispatchQueue.main.async {
-                self.receivedData = stringValue
-             }
-             
+                         
              Task {
-                await DataManager.shared.saveReading(stringValue) // TODO: make sure DataManager has something like this
+                await DataManager.shared.saveReading(value) // TODO: make sure DataManager has something like this
              }
 
-            print("received update value: \(stringValue)")
+            // print("received update value: \(stringValue)")
         }
     }
 }

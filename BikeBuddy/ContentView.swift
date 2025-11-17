@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Charts
-import Combine
 
 struct ContentView: View {
     var body: some View {
@@ -42,11 +40,6 @@ struct ContentView: View {
             }
             .padding(.horizontal)
             .navigationTitle("Summary")
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                // Code to execute when the app is about to terminate
-                print("APP IS CLOSING!!!")
-                // Perform cleanup, save data, etc.
-            }
         }
     }
 }
