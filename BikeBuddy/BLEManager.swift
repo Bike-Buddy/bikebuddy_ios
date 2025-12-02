@@ -63,6 +63,17 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
         centralManager.connect(peripheral, options: nil)
     }
     
+    /*
+    // TODO: disconnect option ???
+    func cancelPeripheralConnection(to peripheral: CBPeripheral) {
+        if connectedPeripheral != peripheral || !isConnected {
+            print("no existing connection with \(peripheral.name ?? "Unknown")")
+            return
+        }
+        centralManager.cancelPeripheralConnection(peripheral)
+    }
+    */
+    
     // MARK: - CBCentralManagerDelegate
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -109,7 +120,6 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverServices error: (any Error)?) {
-        
         if let error = error {
             print("unable to discover services: \(error.localizedDescription)")
             refreshDevices()
@@ -127,7 +137,6 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService,
                     error: (any Error)?) {
-        
         if let error = error {
             print("unable to discover characteristics: \(error.localizedDescription)")
             refreshDevices()
@@ -159,10 +168,13 @@ final class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CB
             let stringValue = value.hexEncodedString()
             receivedData = stringValue
                          
-             Task {
-                await DataManager.shared.saveReading(value) // TODO: make sure DataManager has something like this
-             }
-
+            // TODO: parse receivedData into custom struct type to extract data + store
+            // 4 warnings: tire, brake, gear/chain, number of red flags
+            
+            Task {
+                await DataManager.shared.saveReading(value)
+            }
+            
             // print("received update value: \(stringValue)")
         }
     }

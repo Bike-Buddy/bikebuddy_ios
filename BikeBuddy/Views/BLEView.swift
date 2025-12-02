@@ -16,6 +16,15 @@ struct BLEView: View {
         NavigationStack {
             List(bleManager.peripherals, id: \.identifier) { peripheral in
                 if ( peripheral.name?.contains("BikeBuddy") ?? false ) {
+                    
+                    /*
+                     TODO: change to a start/stop ride button
+                     - record start/stop timestamps in data store
+                     - only store bluetooth data if start button tapped
+                     - add ability to filter by rides, start/stop times, hour/week/day durations etc to DataView
+                     - find out what bluetooth packet data contains in BLEManager
+                     */
+
                     Button(action: {
                         bleManager.connect(to: peripheral)
                         showSheet.toggle()
@@ -50,9 +59,10 @@ struct SheetView: View {
             Text(bleManager.receivedData)
                 .font(.body)
                 .padding()
+            
+            Text(bleManager.receivedData)
             Text("Length: \(bleManager.receivedData.count)")
                 .font(.caption)
-                
             
             Text("Device Info:")
                 .font(.headline)
